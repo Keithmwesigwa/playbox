@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlayBox Movies</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #141414;
+      color: white;
+    }
+    header {
+      padding: 20px;
+      text-align: center;
+      background-color: #1c1c1c;
+    }
+    header h1 {
+      margin: 0;
+    }
+    #search-bar {
+      margin: 20px auto;
+      display: block;
+      width: 80%;
+      max-width: 600px;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: none;
+      outline: none;
+    }
+    #movie-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+      padding: 20px;
+    }
+    .movie {
+      position: relative;
+      cursor: pointer;
+    }
+    .movie img {
+      width: 100%;
+      border-radius: 5px;
+    }
+    .movie-title {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 5px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    #movie-details {
+      display: none;
+      padding: 20px;
+    }
+    #movie-details img {
+      max-width: 100%;
+      margin-bottom: 10px;
+    }
+    #back-button {
+      margin-top: 20px;
+      cursor: pointer;
+      background-color: #e50914;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PlayBox Movies</h1>
+    <input type="text" id="search-bar" placeholder="Search for movies...">
+  </header>
+  <div id="movie-grid"></div>
+  <div id="movie-details">
+    <button id="back-button">Back to Movies</button>
+    <div id="details-content"></div>
+  </div>
+
+  <script>
+    const API_KEY = '746d75472f6a22fc92b3bdbb6eabd982';
+    const BASE_URL = 'https://api.themoviedb.org/3';
+    const IMAGE_URL = 'https://image.tmdb.org/t/p/w500';
+    const movieGrid = document.getElementById('movie-grid');
+    const movieDetails = document.getElementById('movie-details');
+    const detailsContent = document.getElementById('details-content');
+    const backButton = document.getElementById('back-button');
+    const searchBar = document.getElementById('search-bar');
+
+    let currentPage = 1;
+    let isLoading = false;
+    let currentQuery = '';
+
+    async function fetchMovies(page = 1) {
+      isLoading = true;
+      const url = currentQuery
+        ? `${BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(currentQuery)}&page=${page}`
+        : `${BASE_URL}/movie/popular?api_key=${API_KEY}&page=${page}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      displayMovies(data.results);
+      isLoading = false;
+    }
+
+    function displayMovies(movies) {
+      movies.forEach(movie => {
+        const movieElement = document.createElement('div');
+        movieElement.classList.add('movie');
+        movieElement.innerHTML = `
+          <img src="${IMAGE_URL}${movie.poster_path}" alt="${movie.title}">
+          <div class="movie-title">${movie.title}</div>
+        `;
+        movieElement.addEventListener('click', () => fetchMovieDetails(movie.id));
+        movieGrid.appendChild(movieElement);
+      });
+    }
+
+    async function fetchMovieDetails(movieId) {
+      const response = await fetch(`${BASE_URL}/movie/${movieId}?api_key=${API_KEY}&append_to_response=videos,watch/providers`);
+      const movie = await response.json();
+      displayMovieDetails(movie);
+    }
+
+    function displayMovieDetails(movie) {
+      const trailer = movie.videos.results.find(video => video.type === 'Trailer');
+      const providers = movie['watch/providers'].results.US?.flatrate || [];
+      const streamingLinks = providers.length
+        ? providers.map(provider => `<p>${provider.provider_name}</p>`).join('')
+        : 'No streaming options available.';
+      
+      movieDetails.style.display = 'block';
+      movieGrid.style.display = 'none';
+      detailsContent.innerHTML = `
+        <h2>${movie.title}</h2>
+        <img src="${IMAGE_URL}${movie.poster_path}" alt="${movie.title}">
+        <p>${movie.overview}</p>
+        <p><strong>Release Date:</strong> ${movie.release_date}</p>
+        <p><strong>Rating:</strong> ${movie.vote_average}</p>
+        ${
+          trailer
+            ? `<iframe width="100%" height="315" src="https://www.youtube.com/embed/${trailer.key}" frameborder="0" allowfullscreen></iframe>`
+            : '<p>No trailer available</p>'
+        }
+        <h3>Watch Now:</h3>
+        ${streamingLinks}
+      `;
+    }
+
+    backButton.addEventListener('click', () => {
+      movieDetails.style.display = 'none';
+      movieGrid.style.display = 'grid';
+    });
+
+    searchBar.addEventListener('input', (e) => {
+      currentQuery = e.target.value;
+      movieGrid.innerHTML = ''; // Clear previous results
+      currentPage = 1;
+      fetchMovies();
+    });
+
+    window.addEventListener('scroll', () => {
+      if (
+        window.innerHeight + window.scrollY >= document.body.offsetHeight - 100 &&
+        !isLoading
+      ) {
+        currentPage++;
+        fetchMovies(currentPage);
+      }
+    });
+
+    // Initial fetch
+    fetchMovies();
+  </script>
+</body>
+</html>
